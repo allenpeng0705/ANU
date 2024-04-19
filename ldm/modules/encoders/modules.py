@@ -1,12 +1,16 @@
 import torch
 import torch.nn as nn
+import kornia
+from torch.utils.checkpoint import checkpoint
+
 from functools import partial
 import clip
+import open_clip
 from einops import rearrange, repeat
-from transformers import CLIPTokenizer, CLIPTextModel
+from transformers import T5Tokenizer, T5EncoderModel, CLIPTokenizer, CLIPTextModel
 from modules.config import SDConfig
-import kornia
 
+from ldm.util import default, count_params, autocast
 from ldm.modules.x_transformer import Encoder, TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
 
 
@@ -132,28 +136,12 @@ class SpatialRescaler(nn.Module):
             x = self.channel_mapper(x)
         return x
 
-    def encode(self, x):
+def encode(self, x):
         return self(x)
 
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
     def __init__(self, device="cuda", max_length=77):
-=======
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
->>>>>>> parent of 43912aa (Move the config to one global singleton class)
-=======
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
->>>>>>> parent of 43912aa (Move the config to one global singleton class)
-=======
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
->>>>>>> parent of 43912aa (Move the config to one global singleton class)
-=======
-    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
->>>>>>> parent of 43912aa (Move the config to one global singleton class)
         super().__init__()
         path = "models/text-encoder/"
         config = SDConfig()

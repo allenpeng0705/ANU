@@ -1,3 +1,13 @@
 
 *.pyc
 *.ckpt
+models/text-encoder/openai/clip-vit-large-patch14/pytorch_model.bin
+*.pyc
+ldm/modules/diffusionmodules/__pycache__/util.cpython-38.pyc
+ldm/__pycache__/util.cpython-38.pyc
+ldm/modules/__pycache__/attention.cpython-38.pyc
+ldm/modules/__pycache__/ema.cpython-38.pyc
+ldm/modules/diffusionmodules/__pycache__/model.cpython-38.pyc
+*.pyc
+*.png
+*.pyc
