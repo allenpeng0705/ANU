@@ -4,6 +4,7 @@ from functools import partial
 import clip
 from einops import rearrange, repeat
 from transformers import CLIPTokenizer, CLIPTextModel
+from modules.config import SDConfig
 import kornia
 
 from ldm.modules.x_transformer import Encoder, TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
@@ -136,10 +137,29 @@ class SpatialRescaler(nn.Module):
 
 class FrozenCLIPEmbedder(AbstractEncoder):
     """Uses the CLIP transformer encoder for text (from Hugging Face)"""
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
+    def __init__(self, device="cuda", max_length=77):
+=======
     def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
+>>>>>>> parent of 43912aa (Move the config to one global singleton class)
+=======
+    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
+>>>>>>> parent of 43912aa (Move the config to one global singleton class)
+=======
+    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
+>>>>>>> parent of 43912aa (Move the config to one global singleton class)
+=======
+    def __init__(self, version="openai/clip-vit-large-patch14", device="cuda", max_length=77):
+>>>>>>> parent of 43912aa (Move the config to one global singleton class)
         super().__init__()
-        self.tokenizer = CLIPTokenizer.from_pretrained(version)
-        self.transformer = CLIPTextModel.from_pretrained(version)
+        path = "models/text-encoder/"
+        config = SDConfig()
+        path = path + config.cmd_opt.textencoder
+        self.tokenizer = CLIPTokenizer.from_pretrained(path)
+        self.transformer = CLIPTextModel.from_pretrained(path)
         self.device = device
         self.max_length = max_length
         self.freeze()
