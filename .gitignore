@@ -13,3 +13,4 @@ ldm/modules/diffusionmodules/__pycache__/model.cpython-38.pyc
 *.pyc
 ldm/__pycache__/util.cpython-38.pyc
 *.pyc
+*.safetensors

@@ -160,7 +160,8 @@ class SDConfig(object):
         parser.add_argument(
             "--sdbase",
             type=str,
-            default="V1-5-pruned.ckpt",
+            default= "v1-5-pruned-emaonly.safetensors",
+            #"V1-5-pruned.ckpt",
             help="name of the stable diffusion base model",
         )
         parser.add_argument(
