@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import math
-
+from tqdm import tqdm
 
 class NoiseScheduleVP:
     def __init__(
@@ -339,7 +339,16 @@ def model_wrapper(
             else:
                 x_in = torch.cat([x] * 2)
                 t_in = torch.cat([t_continuous] * 2)
-                c_in = torch.cat([unconditional_condition, condition])
+                if isinstance(condition, dict):
+                    assert isinstance(unconditional_condition, dict)
+                    c_in = dict()
+                    for k in condition:
+                        if isinstance(condition[k], list):
+                            c_in[k] = [torch.cat([unconditional_condition[k][i], condition[k][i]]) for i in range(len(condition[k]))]
+                        else:
+                            c_in[k] = torch.cat([unconditional_condition[k], condition[k]])
+                else:
+                    c_in = torch.cat([unconditional_condition, condition])
                 noise_uncond, noise = noise_pred_fn(x_in, t_in, cond=c_in).chunk(2)
                 return noise_uncond + guidance_scale * (noise - noise_uncond)
 
@@ -1083,13 +1092,13 @@ class DPM_Solver:
                 model_prev_list = [self.model_fn(x, vec_t)]
                 t_prev_list = [vec_t]
                 # Init the first `order` values by lower order multistep DPM-Solver.
-                for init_order in range(1, order):
+                for init_order in tqdm(range(1, order), desc="DPM init order"):
                     vec_t = timesteps[init_order].expand(x.shape[0])
                     x = self.multistep_dpm_solver_update(x, model_prev_list, t_prev_list, vec_t, init_order, solver_type=solver_type)
                     model_prev_list.append(self.model_fn(x, vec_t))
                     t_prev_list.append(vec_t)
                 # Compute the remaining values by `order`-th order multistep DPM-Solver.
-                for step in range(order, steps + 1):
+                for step in tqdm(range(order, steps + 1), desc="DPM multistep"):
                     vec_t = timesteps[step].expand(x.shape[0])
                     if lower_order_final and steps < 15:
                         step_order = min(order, steps + 1 - step)
