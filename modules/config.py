@@ -152,11 +152,46 @@ class SDConfig(object):
             type=str,
             help="if specified, load prompts from this file",
         )
+        """ 
+        ## For SD V1, V1.5 #############################################################################################
+        parser.add_argument(
+            "--config",
+            type=str,
+            default="v1-inference.yaml",
+            #"v2-1-stable-unclip-h-inference.yaml",
+            help="path to config which constructs model",
+        )
+        parser.add_argument(
+            "--sdversion",
+            type=str,
+            default="v1",
+            help="indicate the version of stable diffusion",
+        )
+        parser.add_argument(
+            "--sdbase",
+            type=str,
+            default="v1-5-pruned-emaonly.safetensors",
+            #"v2-1_768-ema-pruned.ckpt",
+            #"V1-5-pruned.ckpt",
+            help="name of the stable diffusion base model",
+        )
+        parser.add_argument(
+            "--textencoder",
+            type=str,
+            default="openai/clip-vit-large-patch14",
+            #"laion/CLIP-ViT-H-14-laion2B-s32B-b79K/open_clip_pytorch_model.bin",
+            help="name of the text encoder model",
+        )
+
+        ################################################################################################################
+        """
+
+        ## for SD V2, V2.1 #############################################################################################
         parser.add_argument(
             "--config",
             type=str,
             default="v2-inference.yaml",
-            #"v1-inference.yaml",
+            #"v2-1-stable-unclip-h-inference.yaml",
             help="path to config which constructs model",
         )
         parser.add_argument(
@@ -169,17 +204,17 @@ class SDConfig(object):
             "--sdbase",
             type=str,
             default="v2-1_768-ema-pruned.ckpt",
-            #"v1-5-pruned-emaonly.safetensors",
-            #"V1-5-pruned.ckpt",
             help="name of the stable diffusion base model",
         )
         parser.add_argument(
             "--textencoder",
             type=str,
             default="laion/CLIP-ViT-H-14-laion2B-s32B-b79K/open_clip_pytorch_model.bin",
-            #"openai/clip-vit-large-patch14",
             help="name of the text encoder model",
         )
+
+        ################################################################################################################
+
         parser.add_argument(
             "--seed",
             type=int,
