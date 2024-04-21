@@ -9,7 +9,9 @@ class SDConfig(object):
     def __init__(self):
         super().__init__()
         self.cmd_opt = self.read_cmd_options()
-        self.sd_config = OmegaConf.load(f"{self.cmd_opt.config}")
+        path = "configs/stable-diffusion/"
+        path += self.cmd_opt.config
+        self.sd_config = OmegaConf.load(f"{path}")
 
     def read_cmd_options(self):
         parser = argparse.ArgumentParser()
@@ -68,7 +70,7 @@ class SDConfig(object):
         parser.add_argument(
             "--ddim_steps",
             type=int,
-            default=50,
+            default=500,
             help="number of ddim sampling steps",
         )
         parser.add_argument(
@@ -80,6 +82,11 @@ class SDConfig(object):
             "--dpm_solver",
             action='store_true',
             help="use dpm_solver sampling",
+        )
+        parser.add_argument(
+            "--dpm",
+            action='store_true',
+            help="use DPM (2) sampler",
         )
         parser.add_argument(
             "--fixed_code",
@@ -120,7 +127,7 @@ class SDConfig(object):
             "--f",
             type=int,
             default=8,
-            help="downsampling factor",
+            help="downsampling factor, most often 8 or 16",
         )
         parser.add_argument(
             "--n_samples",
@@ -141,33 +148,36 @@ class SDConfig(object):
             help="unconditional guidance scale: eps = eps(x, empty) + scale * (eps(x, cond) - eps(x, empty))",
         )
         parser.add_argument(
-            "--from-file",
+            "--from_file",
             type=str,
             help="if specified, load prompts from this file",
         )
         parser.add_argument(
             "--config",
             type=str,
-            default="configs/stable-diffusion/v1-inference.yaml",
+            default="v2-inference.yaml",
+            #"v1-inference.yaml",
             help="path to config which constructs model",
         )
         parser.add_argument(
             "--sdversion",
             type=str,
-            default="v1",
+            default="v2",
             help="indicate the version of stable diffusion",
         )
         parser.add_argument(
             "--sdbase",
             type=str,
-            default= "v1-5-pruned-emaonly.safetensors",
+            default="v2-1_768-ema-pruned.ckpt",
+            #"v1-5-pruned-emaonly.safetensors",
             #"V1-5-pruned.ckpt",
             help="name of the stable diffusion base model",
         )
         parser.add_argument(
             "--textencoder",
             type=str,
-            default="openai/clip-vit-large-patch14",
+            default="laion/CLIP-ViT-H-14-laion2B-s32B-b79K/open_clip_pytorch_model.bin",
+            #"openai/clip-vit-large-patch14",
             help="name of the text encoder model",
         )
         parser.add_argument(
@@ -182,6 +192,34 @@ class SDConfig(object):
             help="evaluate at this precision",
             choices=["full", "autocast"],
             default="autocast"
+        )
+        parser.add_argument(
+            "--repeat",
+            type=int,
+            default=1,
+            help="repeat each prompt in file this often",
+        )
+        parser.add_argument(
+            "--device",
+            type=str,
+            help="Device on which Stable Diffusion will be run",
+            choices=["cpu", "cuda"],
+            default="cuda"
+        )
+        parser.add_argument(
+            "--torchscript",
+            action='store_true',
+            help="Use TorchScript",
+        )
+        parser.add_argument(
+            "--ipex",
+            action='store_true',
+            help="Use Intel® Extension for PyTorch*",
+        )
+        parser.add_argument(
+            "--bf16",
+            action='store_true',
+            help="Use bfloat16",
         )
 
         return parser.parse_args()

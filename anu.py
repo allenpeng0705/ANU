@@ -21,6 +21,7 @@ from ldm.models.diffusion.dpm_solver import DPMSolverSampler
 
 from modules.config import SDConfig
 
+#torch.set_grad_enabled(False)
 
 def chunk(it, size):
     it = iter(it)
@@ -39,21 +40,36 @@ def numpy_to_pil(images):
     return pil_images
 
 
-def load_model_from_config(config, ckpt, verbose=False):
+def load_model_from_config(config, ckpt, device=torch.device("cuda"), verbose=False):
     model = instantiate_from_config(config.model)
     pl_sd = None
+    m = None
+    u = None
     if ckpt.endswith(".ckpt") or ckpt.endswith(".pth") or ckpt.endswith(".pt") or ckpt.endswith(".bin"):
         pl_sd = torch.load(ckpt, map_location="cpu")
         if "global_step" in pl_sd:
             print(f"Global Step: {pl_sd['global_step']}") 
-        model.load_state_dict(pl_sd['state_dict'], strict=False)
+        m, u = model.load_state_dict(pl_sd['state_dict'], strict=False)
     elif ckpt.endswith(".safetensors"):
         pl_sd =  load_file(ckpt)  
         if "global_step" in pl_sd:
             print(f"Global Step: {pl_sd['global_step']}") 
-        model.load_state_dict(pl_sd, strict=False)
+        m, u = model.load_state_dict(pl_sd, strict=False)
 
-    model.cuda()
+    if len(m) > 0 and verbose:
+        print("missing keys:")
+        print(m)
+    if len(u) > 0 and verbose:
+        print("unexpected keys:")
+        print(u)
+
+    if device == torch.device("cuda"):
+        model.cuda()
+    elif device == torch.device("cpu"):
+        model.cpu()
+        model.cond_stage_model.device = "cpu"
+    else:
+        raise ValueError(f"Incorrect device name. Received: {device}")
     model.eval()
     return model
 
@@ -80,20 +96,19 @@ def load_img(path):
     return 2.*image - 1.
 
 
-def main():
- 
+def main(): 
     sd_config = SDConfig()
     opt = sd_config.cmd_opt
     seed_everything(opt.seed)
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     config = sd_config.sd_config
     path = "models/stable-diffusion/base/"
     path += opt.sdversion
     path += "/"
     path += opt.sdbase
-    model = load_model_from_config(config, f"{path}")
+    model = load_model_from_config(config, f"{path}", device)
 
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
 
     os.makedirs(opt.outdir, exist_ok=True)
@@ -149,9 +164,87 @@ def main():
     if opt.fixed_code:
         start_code = torch.randn([opt.n_samples, opt.C, opt.H // opt.f, opt.W // opt.f], device=device)
 
+    ## From SD V2
+    ################################################################################################################
+
+    if opt.torchscript or opt.ipex:
+        transformer = model.cond_stage_model.model
+        unet = model.model.diffusion_model
+        decoder = model.first_stage_model.decoder
+        additional_context = torch.cpu.amp.autocast() if opt.bf16 else nullcontext()
+        shape = [opt.C, opt.H // opt.f, opt.W // opt.f]
+
+        if opt.bf16 and not opt.torchscript and not opt.ipex:
+            raise ValueError('Bfloat16 is supported only for torchscript+ipex')
+        if opt.bf16 and unet.dtype != torch.bfloat16:
+            raise ValueError("Use configs/stable-diffusion/intel/ configs with bf16 enabled if " +
+                             "you'd like to use bfloat16 with CPU.")
+        if unet.dtype == torch.float16 and device == torch.device("cpu"):
+            raise ValueError("Use configs/stable-diffusion/intel/ configs for your model if you'd like to run it on CPU.")
+
+        if opt.ipex:
+            import intel_extension_for_pytorch as ipex
+            bf16_dtype = torch.bfloat16 if opt.bf16 else None
+            transformer = transformer.to(memory_format=torch.channels_last)
+            transformer = ipex.optimize(transformer, level="O1", inplace=True)
+
+            unet = unet.to(memory_format=torch.channels_last)
+            unet = ipex.optimize(unet, level="O1", auto_kernel_selection=True, inplace=True, dtype=bf16_dtype)
+
+            decoder = decoder.to(memory_format=torch.channels_last)
+            decoder = ipex.optimize(decoder, level="O1", auto_kernel_selection=True, inplace=True, dtype=bf16_dtype)
+
+        if opt.torchscript:
+            with torch.no_grad(), additional_context:
+                # get UNET scripted
+                if unet.use_checkpoint:
+                    raise ValueError("Gradient checkpoint won't work with tracing. " +
+                    "Use configs/stable-diffusion/intel/ configs for your model or disable checkpoint in your config.")
+
+                img_in = torch.ones(2, 4, 96, 96, dtype=torch.float32)
+                t_in = torch.ones(2, dtype=torch.int64)
+                context = torch.ones(2, 77, 1024, dtype=torch.float32)
+                scripted_unet = torch.jit.trace(unet, (img_in, t_in, context))
+                scripted_unet = torch.jit.optimize_for_inference(scripted_unet)
+                print(type(scripted_unet))
+                model.model.scripted_diffusion_model = scripted_unet
+
+                # get Decoder for first stage model scripted
+                samples_ddim = torch.ones(1, 4, 96, 96, dtype=torch.float32)
+                scripted_decoder = torch.jit.trace(decoder, (samples_ddim))
+                scripted_decoder = torch.jit.optimize_for_inference(scripted_decoder)
+                print(type(scripted_decoder))
+                model.first_stage_model.decoder = scripted_decoder
+
+        prompts = data[0]
+        print("Running a forward pass to initialize optimizations")
+        uc = None
+        if opt.scale != 1.0:
+            uc = model.get_learned_conditioning(batch_size * [""])
+        if isinstance(prompts, tuple):
+            prompts = list(prompts)
+
+        with torch.no_grad(), additional_context:
+            for _ in range(3):
+                c = model.get_learned_conditioning(prompts)
+            samples_ddim, _ = sampler.sample(S=5,
+                                             conditioning=c,
+                                             batch_size=batch_size,
+                                             shape=shape,
+                                             verbose=False,
+                                             unconditional_guidance_scale=opt.scale,
+                                             unconditional_conditioning=uc,
+                                             eta=opt.ddim_eta,
+                                             x_T=start_code)
+            print("Running a forward pass for decoder")
+            for _ in range(3):
+                x_samples_ddim = model.decode_first_stage(samples_ddim)
+   
+    ###############################################################################################################################
+
     precision_scope = autocast if opt.precision=="autocast" else nullcontext
     with torch.no_grad():
-        with precision_scope("cuda"):
+        with precision_scope(opt.device):
             with model.ema_scope():
                 tic = time.time()
                 all_samples = list()
@@ -196,9 +289,11 @@ def main():
 
                             x_samples_ddim = model.decode_first_stage(samples_ddim)
                             x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
-                            x_samples_ddim = x_samples_ddim.cpu().permute(0, 2, 3, 1).numpy()
+                            x_image_torch = x_samples_ddim
 
-                            x_image_torch = torch.from_numpy(x_samples_ddim).permute(0, 3, 1, 2)
+                            if opt.sdversion == "v1":                    
+                                x_samples_ddim = x_samples_ddim.cpu().permute(0, 2, 3, 1).numpy()
+                                x_image_torch = torch.from_numpy(x_samples_ddim).permute(0, 3, 1, 2)
 
                             if not opt.skip_save:
                                 for x_sample in x_image_torch:

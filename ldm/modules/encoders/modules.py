@@ -361,7 +361,12 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
                  freeze=True, layer="last"):
         super().__init__()
         assert layer in self.LAYERS
-        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
+
+        path = "models/text-encoder/"
+        config = SDConfig()
+        path = path + config.cmd_opt.textencoder
+
+        model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=path)
         del model.visual
         self.model = model
 
@@ -418,8 +423,11 @@ class FrozenOpenCLIPImageEmbedder(AbstractEncoder):
     def __init__(self, arch="ViT-H-14", version="laion2b_s32b_b79k", device="cuda", max_length=77,
                  freeze=True, layer="pooled", antialias=True, ucg_rate=0.):
         super().__init__()
+        path = "models/text-encoder/"
+        config = SDConfig()
+        path = path + config.cmd_opt.textencoder
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'),
-                                                            pretrained=version, )
+                                                            pretrained=path, )
         del model.transformer
         self.model = model
 

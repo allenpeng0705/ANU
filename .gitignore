@@ -14,3 +14,4 @@ ldm/modules/diffusionmodules/__pycache__/model.cpython-38.pyc
 ldm/__pycache__/util.cpython-38.pyc
 *.pyc
 *.safetensors
+models/text-encoder/laion/CLIP-ViT-H-14-laion2B-s32B-b79K/
