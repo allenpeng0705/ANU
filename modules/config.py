@@ -70,7 +70,7 @@ class SDConfig(object):
         parser.add_argument(
             "--ddim_steps",
             type=int,
-            default=500,
+            default=50,
             help="number of ddim sampling steps",
         )
         parser.add_argument(
